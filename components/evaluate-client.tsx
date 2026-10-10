@@ -8,6 +8,7 @@ import {
 } from "@/lib/types";
 import ScoreRadar from "./score-radar";
 import MarkdownView from "./markdown-view";
+import { evaluateLocally } from "@/lib/client-local";
 
 const EXAMPLE_BRIEF = `项目名称：智课伴侣
 我们计划开发一个基于 RAG 的课程知识问答助手。同学们把课件、教材和历年题库上传后，系统自动切块向量化构建课程专属知识库，用自然语言提问即可获得带出处引用的回答。
@@ -56,6 +57,24 @@ export default function EvaluateClient() {
     abortRef.current?.abort();
     const controller = new AbortController();
     abortRef.current = controller;
+
+    // 静态导出版（GitHub Pages）无服务端接口，直接在浏览器本地运行演示逻辑
+    if (process.env.NEXT_PUBLIC_STATIC_EXPORT === "1") {
+      setSource("demo");
+      await evaluateLocally(
+        brief,
+        {
+          onScore: (r) => {
+            setResult(r);
+            setPhase("advising");
+          },
+          onDelta: (t) => setAdvice((prev) => prev + t),
+        },
+        controller.signal,
+      );
+      if (!controller.signal.aborted) setPhase("done");
+      return;
+    }
 
     try {
       const res = await fetch("/api/evaluate", {

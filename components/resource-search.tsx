@@ -7,6 +7,7 @@ import {
   type SearchSource,
 } from "@/lib/types";
 import MarkdownView from "./markdown-view";
+import { searchLocally } from "@/lib/client-local";
 
 const EXAMPLE_QUERIES = [
   "我想做一个课程知识库问答项目，有什么开源项目可以参考？",
@@ -70,6 +71,28 @@ export default function ResourceSearch() {
       { id, query: q, source: null, matches: [], summary: "", status: "searching" },
     ]);
     scrollToBottom();
+
+    // 静态导出版（GitHub Pages）无服务端接口，直接在浏览器本地检索
+    if (process.env.NEXT_PUBLIC_STATIC_EXPORT === "1") {
+      await searchLocally(
+        q,
+        {
+          onResults: (matches) => {
+            updateRound(id, { source: "demo", matches, status: "answering" });
+            scrollToBottom();
+          },
+          onDelta: (t) =>
+            setRounds((prev) =>
+              prev.map((r) =>
+                r.id === id ? { ...r, summary: r.summary + t } : r,
+              ),
+            ),
+        },
+        controller.signal,
+      );
+      updateRound(id, { status: "done" });
+      return;
+    }
 
     try {
       const res = await fetch("/api/search", {
